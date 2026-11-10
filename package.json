@@ -10,7 +10,8 @@
     "build:pages": "VITE_BASE=/custom-your-site/ vite build && node scripts/pages-spa.mjs",
     "preview": "vite preview",
     "test": "node --test src/swagstack/lib/*.test.js",
-    "test:swagstack": "node --test src/swagstack/lib/*.test.js"
+    "test:swagstack": "node --test src/swagstack/lib/*.test.js",
+    "supabase:connect": "node scripts/connect-supabase.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

@@ -5,11 +5,12 @@ Multi-tenant website customizer SaaS with a cyber / Pixably-inspired editor.
 - Studio app: `/studio`
 - Published customer sites: `/s/:slug`
 - Setup + env docs: [`docs/SWAGSTACK.md`](docs/SWAGSTACK.md)
+- Supabase connect: [`docs/SUPABASE_CONNECT.md`](docs/SUPABASE_CONNECT.md) → [API keys](https://supabase.com/dashboard/project/kxibxwvigejfzbhkksgu/settings/api)
 - DB migration: [`supabase/swagstack_schema.sql`](supabase/swagstack_schema.sql)
 
 ```bash
 npm install
-cp .env.example .env   # fill VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+npm run supabase:connect   # or: cp .env.example .env and fill keys
 npm run dev
 ```
 
