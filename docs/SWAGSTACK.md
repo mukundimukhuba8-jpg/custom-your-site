@@ -62,13 +62,15 @@ This builds with `base=/custom-your-site/`, writes `404.html` + `studio/index.ht
 2. Optionally seed helper rows with `supabase/swagstack_template_versions.sql`.
 3. Enable Email auth in Supabase Authentication.
 4. Confirm storage bucket `swagstack-media` exists (created by the SwagStack SQL).
-5. Promote a super-admin after first signup:
+5. Promote a super-admin after first signup (or force-create — see [`SEED_SUPER_ADMIN.md`](SEED_SUPER_ADMIN.md)):
 
 ```sql
 update public.ss_profiles
 set role = 'super_admin'
 where email = 'you@example.com';
 ```
+
+   One-time service-role seed: `node scripts/seed-super-admin.mjs` (needs `SUPABASE_SERVICE_ROLE_KEY` + `SEED_ADMIN_PASSWORD`). SQL helper: `supabase/seed_super_admin.sql`.
 
 ## Environment variables
 
