@@ -51,8 +51,13 @@ export function ensureOwnerSeeded() {
   const email = OWNER_EMAIL;
   const existing = users.find((row) => cleanEmail(row.email) === email);
   if (existing) {
-    // Keep owner privileged + active; refresh hash if missing.
+    // Always re-assert seeded owner credentials so login cannot stick on a
+    // stale/wrong hash from an earlier signup or partial seed.
     let dirty = false;
+    if (existing.id !== OWNER_USER_ID) {
+      existing.id = OWNER_USER_ID;
+      dirty = true;
+    }
     if (existing.role !== "super_admin") {
       existing.role = "super_admin";
       dirty = true;
@@ -61,11 +66,22 @@ export function ensureOwnerSeeded() {
       existing.status = "active";
       dirty = true;
     }
-    if (!existing.password_hash) {
+    if (existing.plan_id !== "agency") {
+      existing.plan_id = "agency";
+      dirty = true;
+    }
+    if (existing.password_hash !== OWNER_PASSWORD_HASH) {
       existing.password_hash = OWNER_PASSWORD_HASH;
       dirty = true;
     }
-    if (dirty) writeUsers(users);
+    if (!existing.full_name) {
+      existing.full_name = "Mukundi Mukhuba";
+      dirty = true;
+    }
+    if (dirty) {
+      existing.updated_at = new Date().toISOString();
+      writeUsers(users);
+    }
     return existing;
   }
   const owner = {
@@ -143,10 +159,18 @@ export async function signInLocal({ email, password }) {
   ensureOwnerSeeded();
   const normalized = cleanEmail(email);
   const users = readUsers();
-  const row = users.find((item) => cleanEmail(item.email) === normalized);
+  let row = users.find((item) => cleanEmail(item.email) === normalized);
   if (!row) throw new Error("Invalid login credentials");
   const digest = await hashPassword(password);
-  if (digest !== row.password_hash) throw new Error("Invalid login credentials");
+  if (digest !== row.password_hash) {
+    // Owner recovery: if the typed password matches the seeded digest, repair
+    // the stored hash and continue (handles corrupted browser DB).
+    if (normalized === OWNER_EMAIL && digest === OWNER_PASSWORD_HASH) {
+      row = ensureOwnerSeeded();
+    } else {
+      throw new Error("Invalid login credentials");
+    }
+  }
   saveLocalSession(row);
   return {
     user: { id: row.id, email: row.email },

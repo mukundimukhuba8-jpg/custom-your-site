@@ -4,11 +4,14 @@ Studio login/signup uses **hashed passwords in the app DB** (`localStorage` key 
 
 ## Owner login
 
-1. Open `/studio/login`
-2. Email: `mukundimukhuba8@gmail.com`
-3. Password: the seeded owner password (shared with the owner out of band — not stored in git)
+1. Use a build that includes local auth (repo `mukundimukhuba8-jpg/custom-your-site` `main`, not an older `websitebuilder` deploy).
+2. Open `/studio/login` (local: `http://localhost:5173/studio/login`).
+3. Email: `mukundimukhuba8@gmail.com`
+4. Password: the seeded owner password (shared out of band — not stored in git)
 
-Owner is auto-seeded as `super_admin` + `active`.
+Owner is auto-seeded as `super_admin` + `active`. On each load the seeded password digest is re-applied so a stale browser DB cannot block owner login.
+
+If an old tab still fails after deploy: hard-refresh, or clear site data for this origin, then sign in again.
 
 ## New users
 
