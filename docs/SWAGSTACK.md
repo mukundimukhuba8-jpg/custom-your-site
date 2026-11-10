@@ -29,9 +29,12 @@ Multi-tenant website customizer SaaS in the dedicated `custom-your-site` reposit
 
 ```bash
 npm install
-cp .env.example .env   # fill VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+cp .env.example .env   # or: npm run supabase:connect
+# Keys: https://supabase.com/dashboard/project/kxibxwvigejfzbhkksgu/settings/api
 npm run dev
 ```
+
+Default project: `kxibxwvigejfzbhkksgu` (eu-west-1). See [`SUPABASE_CONNECT.md`](SUPABASE_CONNECT.md).
 
 Open:
 
