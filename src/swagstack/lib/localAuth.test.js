@@ -68,3 +68,27 @@ test("signInLocal rejects wrong password", async () => {
   ensureOwnerSeeded();
   await assert.rejects(() => signInLocal({ email: OWNER_EMAIL, password: "definitely-not-it" }), /Invalid login credentials/);
 });
+
+test("ensureOwnerSeeded repairs stale owner password hash", async () => {
+  store.clear();
+  store.set(
+    "ss_app_users_v1",
+    JSON.stringify([
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        email: OWNER_EMAIL,
+        full_name: "Mukundi Mukhuba",
+        role: "customer",
+        status: "pending",
+        plan_id: "starter",
+        password_hash: "0".repeat(64),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ])
+  );
+  const owner = ensureOwnerSeeded();
+  assert.equal(owner.role, "super_admin");
+  assert.equal(owner.status, "active");
+  assert.equal(owner.password_hash, OWNER_PASSWORD_HASH);
+});
