@@ -30,3 +30,9 @@ node scripts/connect-supabase.mjs
 4. Open `/studio` and Sign up / Sign in
 
 Never put `service_role` in `VITE_*` or the browser bundle.
+
+## Auth: no email confirmation
+
+Dashboard → [Authentication → Providers → Email](https://supabase.com/dashboard/project/kxibxwvigejfzbhkksgu/auth/providers) → **Confirm email = OFF**.
+
+See [`AUTH_EMAIL_CONFIRM.md`](AUTH_EMAIL_CONFIRM.md). Project service/secret keys cannot change this via API (Management token required).
