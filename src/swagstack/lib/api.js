@@ -4,15 +4,26 @@ import { slugify, validateSlug, validateWebsiteConfig, validateUpload, sanitizeT
 import { createCheckoutIntent } from "./payments.js";
 import {
   BOOTSTRAP_USER_ID,
-  bootstrapProfile,
   clearBootstrapSession,
   getLocalSite,
-  loadBootstrapSession,
   loadLocalSites,
-  matchBootstrapCredentials,
-  saveBootstrapSession,
   upsertLocalSite,
 } from "./bootstrap.js";
+import {
+  clearLocalSession,
+  ensureOwnerSeeded,
+  getAppUser,
+  listAppUsers,
+  loadLocalSession,
+  setAppUserStatus,
+  signInLocal,
+  signUpLocal,
+  updateAppUser,
+  updateLocalPassword,
+} from "./localAuth.js";
+
+/** Studio uses own hashed-password auth — not Supabase Auth. */
+export const OWN_AUTH = true;
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
@@ -20,104 +31,65 @@ function requireClient() {
 }
 
 function isBootstrapOwner(ownerId) {
-  return ownerId === BOOTSTRAP_USER_ID || Boolean(loadBootstrapSession());
+  const session = loadLocalSession();
+  if (session && (!ownerId || ownerId === session.userId || session.userId === BOOTSTRAP_USER_ID)) return true;
+  return ownerId === BOOTSTRAP_USER_ID;
+}
+
+/** Local auth mode stores Studio data in-browser (no Supabase Auth / RLS). */
+function preferLocalData() {
+  return OWN_AUTH || !isRemote || Boolean(loadLocalSession());
 }
 
 export async function getSessionUser() {
-  const boot = loadBootstrapSession();
-  if (boot) {
-    return { id: BOOTSTRAP_USER_ID, email: boot.email, bootstrap: true };
-  }
-  if (!isRemote) return null;
-  const { data, error } = await requireClient().auth.getSession();
-  if (error) throw error;
-  return data.session?.user ?? null;
+  ensureOwnerSeeded();
+  const session = loadLocalSession();
+  if (!session) return null;
+  const profile = getAppUser(session.userId);
+  if (!profile) return null;
+  return { id: profile.id, email: profile.email, local: true };
 }
 
 export async function signUp({ email, password, fullName }) {
-  if (await matchBootstrapCredentials(email, password)) {
-    saveBootstrapSession();
-    return { user: { id: BOOTSTRAP_USER_ID, email }, session: { bootstrap: true }, bootstrap: true };
-  }
-  const client = requireClient();
-  const { data, error } = await client.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName || "" } },
-  });
-  if (error) throw error;
-  // Prefer an immediate session (Confirm email OFF / autoconfirm). If signup
-  // returned a user without a session, sign in with the same credentials.
-  if (data?.session) return data;
-  const signedIn = await client.auth.signInWithPassword({ email, password });
-  if (signedIn.error) throw signedIn.error;
-  return signedIn.data;
+  return signUpLocal({ email, password, fullName });
 }
 
 export async function signIn({ email, password }) {
-  if (await matchBootstrapCredentials(email, password)) {
-    saveBootstrapSession();
-    return { user: { id: BOOTSTRAP_USER_ID, email }, session: { bootstrap: true }, bootstrap: true };
-  }
-  const client = requireClient();
-  const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
+  return signInLocal({ email, password });
 }
 
 export async function signOut() {
+  clearLocalSession();
   clearBootstrapSession();
-  if (!isRemote) return;
-  const { error } = await requireClient().auth.signOut();
-  if (error) throw error;
 }
 
 export async function requestPasswordReset(email) {
-  const client = requireClient();
-  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-  const redirectTo = `${window.location.origin}${base}/studio/reset`;
-  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
-  if (error) throw error;
+  const user = listAppUsers().find((row) => row.email === String(email || "").trim().toLowerCase());
+  if (!user) {
+    // Do not reveal whether the email exists.
+    return;
+  }
+  throw new Error("Password reset email is disabled. Ask the Studio owner to approve access or set a new password from Admin after you sign in elsewhere.");
 }
 
 export async function updatePassword(password) {
-  const { error } = await requireClient().auth.updateUser({ password });
-  if (error) throw error;
+  const session = loadLocalSession();
+  if (!session) throw new Error("Sign in first to update your password.");
+  await updateLocalPassword(session.userId, password);
 }
 
 export async function fetchProfile(userId) {
-  if (userId === BOOTSTRAP_USER_ID || loadBootstrapSession()) {
-    return bootstrapProfile();
-  }
-  try {
-    const { data, error } = await requireClient()
-      .from("ss_profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    if (loadBootstrapSession()) return bootstrapProfile();
-    throw error;
-  }
+  ensureOwnerSeeded();
+  const session = loadLocalSession();
+  const id = userId || session?.userId;
+  if (!id) return null;
+  return getAppUser(id);
 }
 
 export async function updateProfile(userId, patch) {
-  if (userId === BOOTSTRAP_USER_ID || loadBootstrapSession()) {
-    const next = { ...bootstrapProfile(), full_name: sanitizeText(patch.full_name, { max: 120 }) };
-    return next;
-  }
-  const { data, error } = await requireClient()
-    .from("ss_profiles")
-    .update({
-      full_name: sanitizeText(patch.full_name, { max: 120 }),
-    })
-    .eq("id", userId)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
+  return updateAppUser(userId, {
+    full_name: sanitizeText(patch.full_name, { max: 120 }),
+  });
 }
 
 export const BUILTIN_PLANS = [
@@ -127,7 +99,7 @@ export const BUILTIN_PLANS = [
 ];
 
 export async function listPlans() {
-  if (!isRemote || isBootstrapOwner()) {
+  if (preferLocalData()) {
     return BUILTIN_PLANS.map((p) => ({ ...p }));
   }
   try {
@@ -144,7 +116,7 @@ export async function listPlans() {
 }
 
 export async function listTemplates() {
-  if (!isRemote) return BUILTIN_TEMPLATES.map((t) => ({ ...t }));
+  if (preferLocalData()) return BUILTIN_TEMPLATES.map((t) => ({ ...t }));
   const { data, error } = await requireClient()
     .from("ss_templates")
     .select("*")
@@ -227,7 +199,7 @@ export async function getPublishedBySlug(slug) {
   const clean = slugify(slug);
   const local = loadLocalSites().find((site) => site.slug === clean && site.status === "published");
   if (local) return local;
-  if (!isRemote) return null;
+  if (preferLocalData()) return null;
   try {
     const { data: website, error } = await requireClient()
       .from("ss_websites")
@@ -626,7 +598,7 @@ export async function startPlanCheckout({ ownerId, plan, returnUrl }) {
 }
 
 export async function writeAudit(actorId, action, entityType, entityId, detail = {}) {
-  if (!isRemote || !actorId || isBootstrapOwner(actorId)) return;
+  if (preferLocalData() || !actorId) return;
   await requireClient().from("ss_audit_logs").insert({
     actor_id: actorId,
     action,
@@ -637,7 +609,7 @@ export async function writeAudit(actorId, action, entityType, entityId, detail =
 }
 
 export async function adminListCustomers() {
-  if (loadBootstrapSession()) return [bootstrapProfile()];
+  if (preferLocalData()) return listAppUsers();
   const { data, error } = await requireClient()
     .from("ss_profiles")
     .select("*")
@@ -647,10 +619,14 @@ export async function adminListCustomers() {
 }
 
 export async function adminListWebsites() {
-  if (loadBootstrapSession()) {
+  if (preferLocalData()) {
+    const users = Object.fromEntries(listAppUsers().map((u) => [u.id, u]));
     return loadLocalSites().map((site) => ({
       ...site,
-      ss_profiles: { email: bootstrapProfile().email, full_name: bootstrapProfile().full_name },
+      ss_profiles: {
+        email: users[site.owner_id]?.email || "",
+        full_name: users[site.owner_id]?.full_name || "",
+      },
     }));
   }
   const { data, error } = await requireClient()
@@ -666,8 +642,10 @@ export async function adminSetCustomerStatus(userId, status, actorId) {
   if (!allowed.has(status)) {
     throw new Error(`Invalid customer status: ${status}`);
   }
-  if (loadBootstrapSession()) {
-    return { ...bootstrapProfile(), id: userId, status };
+  if (preferLocalData()) {
+    const row = setAppUserStatus(userId, status);
+    await writeAudit(actorId, "customer.status", "profile", userId, { status });
+    return row;
   }
   const { data, error } = await requireClient()
     .from("ss_profiles")
@@ -712,7 +690,7 @@ export async function adminSuspendWebsite(websiteId, actorId) {
 }
 
 export async function adminUpsertPlan(plan, actorId) {
-  if (loadBootstrapSession()) return plan;
+  if (preferLocalData()) return plan;
   const { data, error } = await requireClient()
     .from("ss_plans")
     .upsert(plan)
@@ -724,7 +702,7 @@ export async function adminUpsertPlan(plan, actorId) {
 }
 
 export async function adminListAudit() {
-  if (loadBootstrapSession()) return [];
+  if (preferLocalData()) return [];
   const { data, error } = await requireClient()
     .from("ss_audit_logs")
     .select("*")

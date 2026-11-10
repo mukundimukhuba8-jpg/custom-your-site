@@ -150,10 +150,10 @@ export function ResetScreen() {
     setBusy(true);
     try {
       await requestPasswordReset(e.value);
-      setMessage("If that email exists, a reset link was sent. Open it, then set a new password here.");
+      setMessage("If that email exists, follow the next step to set a new password.");
       setMode("update");
     } catch (err) {
-      setError(err.message || "Could not start reset.");
+      setError(err.message || "Password reset is managed by the Studio owner (email reset is disabled).");
     } finally {
       setBusy(false);
     }
