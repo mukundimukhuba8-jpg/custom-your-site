@@ -46,7 +46,12 @@ export async function signUp({ email, password, fullName }) {
     options: { data: { full_name: fullName || "" } },
   });
   if (error) throw error;
-  return data;
+  // Prefer an immediate session (Confirm email OFF / autoconfirm). If signup
+  // returned a user without a session, sign in with the same credentials.
+  if (data?.session) return data;
+  const signedIn = await client.auth.signInWithPassword({ email, password });
+  if (signedIn.error) throw signedIn.error;
+  return signedIn.data;
 }
 
 export async function signIn({ email, password }) {

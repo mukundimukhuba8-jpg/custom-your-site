@@ -76,13 +76,11 @@ export function SignupScreen({ onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    setInfo("");
     const e = validateEmail(email);
     const p = validatePassword(password);
     if (!e.ok) return setError(e.error);
@@ -94,15 +92,13 @@ export function SignupScreen({ onSuccess }) {
         password: p.value,
         fullName: sanitizeText(fullName, { max: 120 }),
       });
-      if (result.session) {
-        onSuccess?.();
-        navigateStudio("/studio/dashboard", { replace: true });
-      } else {
-        setInfo("Check your email to confirm the account, then sign in. (Confirmation depends on your Supabase Auth settings.)");
+      if (!result?.session) {
+        throw new Error("Account created but sign-in did not start. Try Sign in with the same password.");
       }
+      onSuccess?.(result);
+      assignStudio("/studio/dashboard");
     } catch (err) {
       setError(err.message || "Sign up failed.");
-    } finally {
       setBusy(false);
     }
   }
@@ -130,7 +126,6 @@ export function SignupScreen({ onSuccess }) {
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" required />
         </label>
         {error ? <p className="ss-error">{error}</p> : null}
-        {info ? <p className="ss-info">{info}</p> : null}
         <button className="ss-btn ss-btn-primary" disabled={busy} type="submit">
           {busy ? "Creating…" : "Create account"}
         </button>
