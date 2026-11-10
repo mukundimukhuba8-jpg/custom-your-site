@@ -136,9 +136,9 @@ npx vercel --prod
 
 ### After first deploy
 
-1. Apply `supabase/swagstack_schema.sql` in the Supabase SQL editor (Email auth on).
+1. Apply `supabase/swagstack_schema.sql` in the Supabase SQL editor (Email auth on). For existing DBs adding approval: also run `supabase/ss_profiles_pending_status.sql`.
 2. Confirm `/api/swagstack-payments` responds (listed in `vercel.json`; returns `requires_configuration` until payment secrets exist).
-3. Smoke-test `/studio` → sign-up → create site (Laptop/Phone) → publish → `/s/:slug`.
+3. Smoke-test `/studio` → sign-up (lands pending) → super-admin Approves at `/studio/admin/approvals` → create site → publish → `/s/:slug`. See [`SIGNUP_APPROVAL.md`](SIGNUP_APPROVAL.md).
 
 ## Design references
 
