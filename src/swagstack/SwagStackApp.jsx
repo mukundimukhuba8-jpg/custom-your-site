@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { isRemote, supabase } from "../supabase.js";
 import { fetchProfile, getPublishedBySlug, getSessionUser, signOut } from "./lib/api.js";
+import { ensureOwnerSeeded } from "./lib/localAuth.js";
 import { parseStudioRoute, navigateStudio, withBase, assignStudio } from "./lib/path.js";
 import { LoginScreen, ResetScreen, SignupScreen } from "./components/AuthScreens.jsx";
 import { Dashboard, TemplateLibrary } from "./components/Dashboard.jsx";
@@ -11,6 +11,7 @@ import { DomainsPage } from "./components/Domains.jsx";
 import { StudioLanding } from "./components/Landing.jsx";
 import { SiteRenderer } from "./components/SiteRenderer.jsx";
 import { getBuiltinTemplate } from "./lib/templates.js";
+import { loadLocalSites } from "./lib/bootstrap.js";
 import "./swagstack.css";
 
 function Shell({ profile, children, onSignOut }) {
@@ -47,20 +48,24 @@ function PublishedView({ slug }) {
     let cancel = false;
     (async () => {
       try {
-        if (!isRemote) {
-          const demo = getBuiltinTemplate("barber-noir");
-          if (!cancel) {
-            setSite({
-              template_id: demo.id,
-              ss_website_configs: { published: demo.default_config },
-              name: demo.default_config.businessName,
-            });
-          }
+        const row = await getPublishedBySlug(slug);
+        if (row) {
+          if (!cancel) setSite(row);
           return;
         }
-        const row = await getPublishedBySlug(slug);
-        if (!row) throw new Error("This site is not published or the slug is unknown.");
-        if (!cancel) setSite(row);
+        const local = loadLocalSites().find((item) => item.slug === slug && item.status === "published");
+        if (local) {
+          if (!cancel) setSite(local);
+          return;
+        }
+        const demo = getBuiltinTemplate("barber-noir");
+        if (!cancel) {
+          setSite({
+            template_id: demo.id,
+            ss_website_configs: { published: demo.default_config },
+            name: demo.default_config.businessName,
+          });
+        }
       } catch (err) {
         if (!cancel) setError(err.message || "Could not load published site.");
       }
@@ -124,6 +129,7 @@ export default function SwagStackApp() {
     let cancel = false;
     (async () => {
       try {
+        ensureOwnerSeeded();
         const sessionUser = await getSessionUser();
         if (cancel) return;
         setUser(sessionUser);
@@ -132,9 +138,6 @@ export default function SwagStackApp() {
           if (!cancel) setProfile(p);
         } else {
           setProfile(null);
-          if (!isRemote) {
-            setBootError("Supabase env is missing. Owner bootstrap login still works for the configured studio email.");
-          }
         }
       } catch (err) {
         if (!cancel) setBootError(err.message || "Auth bootstrap failed.");
@@ -142,31 +145,8 @@ export default function SwagStackApp() {
         if (!cancel) setReady(true);
       }
     })();
-
-    if (!supabase) return undefined;
-    const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
-        const bootUser = await getSessionUser();
-        if (bootUser?.bootstrap) {
-          setUser(bootUser);
-          setProfile(await fetchProfile(bootUser.id));
-          return;
-        }
-        setUser(null);
-        setProfile(null);
-        return;
-      }
-      setUser(session.user);
-      try {
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
-      } catch {
-        setProfile(null);
-      }
-    });
     return () => {
       cancel = true;
-      data.subscription.unsubscribe();
     };
   }, []);
 

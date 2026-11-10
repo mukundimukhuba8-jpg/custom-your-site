@@ -2,8 +2,9 @@
  *  Password is never stored — only a SHA-256 digest, same pattern as desk admin.js.
  */
 export const BOOTSTRAP_EMAIL = "mukundimukhuba8@gmail.com";
+/** Kept in sync with localAuth OWNER_PASSWORD_HASH (SHA-256; plaintext never stored). */
 export const BOOTSTRAP_PASSWORD_HASH =
-  "18026064be7ec28f428f49e9c93cc0c1f86d3883f11189805f592298467663c9";
+  "8761a23522d5b41dd81e549cd9c69ae10ec84ab71d0c0ea9477b0505a953dce3";
 export const BOOTSTRAP_USER_ID = "00000000-0000-4000-8000-000000000001";
 
 const SESSION_KEY = "ss_bootstrap_session";
