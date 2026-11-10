@@ -662,6 +662,10 @@ export async function adminListWebsites() {
 }
 
 export async function adminSetCustomerStatus(userId, status, actorId) {
+  const allowed = new Set(["pending", "active", "suspended", "deleted"]);
+  if (!allowed.has(status)) {
+    throw new Error(`Invalid customer status: ${status}`);
+  }
   if (loadBootstrapSession()) {
     return { ...bootstrapProfile(), id: userId, status };
   }
@@ -674,6 +678,19 @@ export async function adminSetCustomerStatus(userId, status, actorId) {
   if (error) throw error;
   await writeAudit(actorId, "customer.status", "profile", userId, { status });
   return data;
+}
+
+export async function adminApproveCustomer(userId, actorId) {
+  return adminSetCustomerStatus(userId, "active", actorId);
+}
+
+export async function adminRejectCustomer(userId, actorId) {
+  return adminSetCustomerStatus(userId, "suspended", actorId);
+}
+
+export async function adminListPendingCustomers() {
+  const customers = await adminListCustomers();
+  return customers.filter((row) => row.status === "pending");
 }
 
 export async function adminSuspendWebsite(websiteId, actorId) {

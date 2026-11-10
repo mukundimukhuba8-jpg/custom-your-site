@@ -1053,6 +1053,23 @@
   letter-spacing: -0.03em;
 }
 
+.ss-pending-approval {
+  max-width: 34rem;
+  margin: 4rem auto;
+  text-align: left;
+}
+
+.ss-pending-approval h1 {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.ss-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .ss-admin-tabs {
   display: flex;
   gap: 0.35rem;
