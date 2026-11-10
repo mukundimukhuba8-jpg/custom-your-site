@@ -203,10 +203,30 @@ export default function SwagStackApp() {
     return <StudioLanding signedIn={Boolean(user)} />;
   }
 
+  if (profile?.status === "pending") {
+    return (
+      <div className="ss-page ss-pending-approval">
+        <p className="ss-brand-mark">SwagStack Studio</p>
+        <h1>Waiting for approval</h1>
+        <p className="ss-lede">
+          You are signed in as <strong>{profile.email || user.email}</strong>. An owner must approve your
+          account before you can create or edit sites.
+        </p>
+        <p className="ss-muted">You will get full access as soon as a super-admin clicks Approve.</p>
+        <button type="button" className="ss-btn" onClick={handleSignOut}>
+          Sign out
+        </button>
+      </div>
+    );
+  }
+
   if (profile?.status === "suspended") {
     return (
       <div className="ss-page">
-        <p className="ss-error">This account is suspended. Contact support.</p>
+        <p className="ss-error">This account was rejected or suspended. Contact the Studio owner.</p>
+        <button type="button" className="ss-btn" onClick={handleSignOut}>
+          Sign out
+        </button>
       </div>
     );
   }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import {
+  adminApproveCustomer,
   adminListAudit,
   adminListCustomers,
   adminListWebsites,
+  adminRejectCustomer,
   adminSetCustomerStatus,
   adminSuspendWebsite,
   adminUpsertPlan,
@@ -18,6 +20,9 @@ export function AdminDashboard({ profile, tab = "overview" }) {
   const [audit, setAudit] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [busyId, setBusyId] = useState("");
+
+  const pending = customers.filter((user) => user.status === "pending");
 
   async function reload() {
     const [c, w, p, a] = await Promise.all([
@@ -40,14 +45,46 @@ export function AdminDashboard({ profile, tab = "overview" }) {
     return <div className="ss-page"><p className="ss-error">Super-admin access required.</p></div>;
   }
 
+  async function approveCustomer(user) {
+    setBusyId(user.id);
+    setError("");
+    try {
+      await adminApproveCustomer(user.id, profile.id);
+      setMessage(`Approved ${user.email}.`);
+      await reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function rejectCustomer(user) {
+    setBusyId(user.id);
+    setError("");
+    try {
+      await adminRejectCustomer(user.id, profile.id);
+      setMessage(`Rejected ${user.email}.`);
+      await reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId("");
+    }
+  }
+
   async function toggleCustomer(user) {
+    if (user.status === "pending") return;
     const next = user.status === "active" ? "suspended" : "active";
+    setBusyId(user.id);
     try {
       await adminSetCustomerStatus(user.id, next, profile.id);
       setMessage(`Customer ${user.email} set to ${next}.`);
       await reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusyId("");
     }
   }
 
@@ -98,14 +135,15 @@ export function AdminDashboard({ profile, tab = "overview" }) {
         <div>
           <p className="ss-eyebrow">Super-admin</p>
           <h1>Platform control</h1>
-          <p className="ss-lede">Customers, websites, plans, and audit activity.</p>
+          <p className="ss-lede">Approvals, customers, websites, plans, and audit activity.</p>
         </div>
       </header>
 
       <nav className="ss-admin-tabs">
-        {["overview", "customers", "websites", "plans", "audit"].map((name) => (
+        {["overview", "approvals", "customers", "websites", "plans", "audit"].map((name) => (
           <a key={name} className={tab === name ? "active" : ""} href={withBase(`/studio/admin/${name}`)}>
             {name}
+            {name === "approvals" && pending.length ? ` (${pending.length})` : ""}
           </a>
         ))}
       </nav>
@@ -115,10 +153,45 @@ export function AdminDashboard({ profile, tab = "overview" }) {
 
       {(tab === "overview" || !tab) && (
         <div className="ss-stat-grid">
+          <div><strong>{pending.length}</strong><span>Pending approval</span></div>
           <div><strong>{customers.length}</strong><span>Customers</span></div>
           <div><strong>{websites.length}</strong><span>Websites</span></div>
           <div><strong>{websites.filter((w) => w.status === "published").length}</strong><span>Published</span></div>
-          <div><strong>{plans.length}</strong><span>Active plans</span></div>
+        </div>
+      )}
+
+      {tab === "approvals" && (
+        <div className="ss-table">
+          {!pending.length ? (
+            <p className="ss-muted">No users waiting for approval.</p>
+          ) : (
+            pending.map((user) => (
+              <div key={user.id} className="ss-table-row">
+                <div>
+                  <strong>{user.full_name || "—"}</strong>
+                  <p className="ss-muted">{user.email} · pending · joined {new Date(user.created_at).toLocaleString()}</p>
+                </div>
+                <div className="ss-row-actions">
+                  <button
+                    type="button"
+                    className="ss-btn ss-btn-primary"
+                    disabled={busyId === user.id}
+                    onClick={() => approveCustomer(user)}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="ss-btn"
+                    disabled={busyId === user.id}
+                    onClick={() => rejectCustomer(user)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -130,9 +203,20 @@ export function AdminDashboard({ profile, tab = "overview" }) {
                 <strong>{user.full_name || "—"}</strong>
                 <p className="ss-muted">{user.email} · {user.role} · {user.status}</p>
               </div>
-              <button type="button" className="ss-btn" onClick={() => toggleCustomer(user)}>
-                {user.status === "active" ? "Suspend" : "Reactivate"}
-              </button>
+              {user.status === "pending" ? (
+                <div className="ss-row-actions">
+                  <button type="button" className="ss-btn ss-btn-primary" disabled={busyId === user.id} onClick={() => approveCustomer(user)}>
+                    Approve
+                  </button>
+                  <button type="button" className="ss-btn" disabled={busyId === user.id} onClick={() => rejectCustomer(user)}>
+                    Reject
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="ss-btn" disabled={busyId === user.id || user.role === "super_admin"} onClick={() => toggleCustomer(user)}>
+                  {user.status === "active" ? "Suspend" : "Reactivate"}
+                </button>
+              )}
             </div>
           ))}
         </div>
